@@ -1,4 +1,5 @@
 .auth-card { max-width: 380px; margin: 0 auto; }
+.db-warn { padding: 6px 10px; border-radius: 8px; background: rgba(239,68,68,.1); color: #f87171; font-size: .78rem; }
 .auth-tabs {
   display: flex; gap: 4px; margin-bottom: 16px;
   button {

@@ -1,13 +1,19 @@
 <div class="lab-page">
   <div class="lab-header card">
     <div class="lab-num">Лабораторна 6 · Варіант 13</div>
-    <h2>🔄 Синхронізація — Пульс + Авторизація</h2>
-    <p>Продовження Лаб 4. Реєстрація/вхід, синхронізація з хмарним сховищем, дані з кількох пристроїв різними кольорами.</p>
+    <h2>🔄 Синхронізація — Пульс + MongoDB Auth</h2>
+    <p>Продовження Лаб 4. Реєстрація/вхід через MongoDB Atlas, синхронізація записів пульсу з хмарою, дані з кількох пристроїв.</p>
     <div class="tag-row" style="margin-top:10px">
       <span class="badge blue">Auth</span>
-      <span class="badge purple">Firebase sync</span>
+      <span class="badge purple">MongoDB Atlas</span>
       <span class="badge green">Multi-device</span>
     </div>
+    @if (dbStatus() === 'no-config') {
+      <div class="db-warn" style="margin-top:8px">⚠️ MongoDB не налаштовано — заповніть <code>src/mongo.config.ts</code></div>
+    }
+    @if (dbStatus() === 'error') {
+      <div class="db-warn" style="margin-top:8px">❌ Помилка з'єднання з MongoDB</div>
+    }
   </div>
 
   <!-- Auth forms -->

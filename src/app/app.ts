@@ -20,5 +20,6 @@ export class App {
     { id: 3, title: 'Лаб. 3', subtitle: 'Хмарний монітор' },
     { id: 4, title: 'Лаб. 4', subtitle: 'Графік пульсу' },
     { id: 5, title: 'Лаб. 5', subtitle: 'Стиль ходьби ML' },
+    { id: 6, title: 'Лаб. 6', subtitle: 'Cloud Auth + MongoDB' },
   ];
 }

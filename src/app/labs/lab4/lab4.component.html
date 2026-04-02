@@ -2,12 +2,25 @@
   <div class="lab-header card">
     <div class="lab-num">Лабораторна 4 · Варіант 13</div>
     <h2>❤️ Пульсометр — Симуляція + Графік</h2>
-    <p>Генерація даних пульсу (60–180 bpm), запис у localStorage (SQLite/Room), графік з зонами навантаження.</p>
+    <p>Генерація даних пульсу (60–180 bpm), збереження в MongoDB Atlas, графік з зонами навантаження.</p>
     <div class="tag-row" style="margin-top:10px">
       <span class="badge blue">Chart.js</span>
-      <span class="badge purple">localStorage</span>
+      <span class="badge purple">MongoDB Atlas</span>
       <span class="badge green">Симуляція пульсу</span>
     </div>
+    <!-- DB status indicator -->
+    @if (dbStatus() === 'no-config') {
+      <div class="db-warn">⚠️ MongoDB не налаштовано — заповніть <code>src/mongo.config.ts</code></div>
+    }
+    @if (dbStatus() === 'loading') {
+      <div class="db-info">⏳ Синхронізація з MongoDB…</div>
+    }
+    @if (dbStatus() === 'ok') {
+      <div class="db-ok">✅ MongoDB: синхронізовано</div>
+    }
+    @if (dbStatus() === 'error') {
+      <div class="db-warn">❌ Помилка з'єднання з MongoDB</div>
+    }
   </div>
 
   <!-- BPM + Zone -->

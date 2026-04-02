@@ -1,10 +1,12 @@
-import { Component, OnDestroy, AfterViewInit, ViewChild, ElementRef, signal } from '@angular/core';
+import { Component, OnDestroy, AfterViewInit, ViewChild, ElementRef, signal, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { Chart, LineController, LineElement, PointElement, LinearScale, CategoryScale, Filler, Tooltip } from 'chart.js';
+import { mongoConfig, MONGO_BASE_URL } from '../../../mongo.config';
 
 Chart.register(LineController, LineElement, PointElement, LinearScale, CategoryScale, Filler, Tooltip);
 
-interface Record { ts: number; bpm: number; zone: string; }
+interface PulseRecord { ts: number; bpm: number; zone: string; }
 
 const ZONES = [
   { name: 'Відпочинок',    min: 0,   max: 60,  color: '#64748b' },
@@ -14,11 +16,11 @@ const ZONES = [
   { name: 'Максимальна',   min: 170, max: Infinity, color: '#ef4444' },
 ];
 
+const COLLECTION = 'pulse_records';
+
 function getZone(bpm: number) {
   return ZONES.find(z => bpm >= z.min && bpm < z.max)!;
 }
-
-const STORAGE_KEY = 'lab4_pulse_records';
 
 @Component({
   selector: 'app-lab4',
@@ -29,19 +31,32 @@ const STORAGE_KEY = 'lab4_pulse_records';
 export class Lab4Component implements AfterViewInit, OnDestroy {
   @ViewChild('chartCanvas') chartCanvas!: ElementRef<HTMLCanvasElement>;
 
+  private http = inject(HttpClient);
+
   recording = signal(false);
   bpm = signal(0);
   currentZone = signal(ZONES[0]);
-  records = signal<Record[]>([]);
+  records = signal<PulseRecord[]>([]);
   range = signal<'hour' | 'day' | 'week'>('hour');
   zones = ZONES;
+  dbStatus = signal<'idle' | 'loading' | 'ok' | 'error' | 'no-config'>('idle');
 
+  /** Записи, що накопичились під час поточного сеансу (ще не збережені в БД) */
+  private sessionBuffer: PulseRecord[] = [];
   private chart?: Chart;
   private timer?: ReturnType<typeof setInterval>;
   private phase = 0;
   private baseHR = 72;
 
-  get filtered(): Record[] {
+  private get headers(): HttpHeaders {
+    return new HttpHeaders({ 'Content-Type': 'application/json', 'api-key': mongoConfig.apiKey });
+  }
+
+  private get configReady(): boolean {
+    return mongoConfig.apiKey !== 'YOUR_API_KEY_HERE' && mongoConfig.appId !== 'YOUR_APP_ID_HERE';
+  }
+
+  get filtered(): PulseRecord[] {
     const now = Date.now();
     const cutoffs = { hour: 3600000, day: 86400000, week: 604800000 };
     return this.records().filter(r => now - r.ts < cutoffs[this.range()]);
@@ -52,7 +67,7 @@ export class Lab4Component implements AfterViewInit, OnDestroy {
   get count() { return this.filtered.length; }
 
   ngAfterViewInit() {
-    this.loadFromStorage();
+    this.loadFromMongo();
     this.buildChart();
   }
 
@@ -60,7 +75,13 @@ export class Lab4Component implements AfterViewInit, OnDestroy {
     if (this.recording()) {
       clearInterval(this.timer);
       this.recording.set(false);
+      // Save accumulated session records to MongoDB
+      if (this.sessionBuffer.length) {
+        this.saveToMongo(this.sessionBuffer);
+        this.sessionBuffer = [];
+      }
     } else {
+      this.sessionBuffer = [];
       this.recording.set(true);
       this.timer = setInterval(() => this.tick(), 1000);
     }
@@ -73,8 +94,9 @@ export class Lab4Component implements AfterViewInit, OnDestroy {
 
   clearHistory() {
     this.records.set([]);
-    localStorage.removeItem(STORAGE_KEY);
+    this.sessionBuffer = [];
     this.updateChart();
+    this.deleteFromMongo();
   }
 
   private tick() {
@@ -85,11 +107,63 @@ export class Lab4Component implements AfterViewInit, OnDestroy {
     const zone = getZone(bpm);
     this.bpm.set(bpm);
     this.currentZone.set(zone);
-    const rec: Record = { ts: Date.now(), bpm, zone: zone.name };
+    const rec: PulseRecord = { ts: Date.now(), bpm, zone: zone.name };
     this.records.update(rs => [...rs, rec]);
-    this.saveToStorage();
+    this.sessionBuffer.push(rec);
     this.updateChart();
   }
+
+  // ── MongoDB Atlas Data API calls ──────────────────────────────────────────
+
+  private mongoBody(extra: object) {
+    return {
+      dataSource: mongoConfig.dataSource,
+      database: mongoConfig.database,
+      collection: COLLECTION,
+      ...extra,
+    };
+  }
+
+  private loadFromMongo() {
+    if (!this.configReady) { this.dbStatus.set('no-config'); return; }
+    this.dbStatus.set('loading');
+    const now = Date.now();
+    const weekAgo = now - 604800000;
+    this.http
+      .post<{ documents: PulseRecord[] }>(
+        `${MONGO_BASE_URL}/find`,
+        this.mongoBody({ filter: { ts: { $gte: weekAgo } }, sort: { ts: 1 }, limit: 2000 }),
+        { headers: this.headers }
+      )
+      .subscribe({
+        next: res => {
+          this.records.set(res.documents ?? []);
+          this.dbStatus.set('ok');
+          this.updateChart();
+        },
+        error: () => this.dbStatus.set('error'),
+      });
+  }
+
+  private saveToMongo(docs: PulseRecord[]) {
+    if (!this.configReady) return;
+    this.dbStatus.set('loading');
+    this.http
+      .post(`${MONGO_BASE_URL}/insertMany`, this.mongoBody({ documents: docs }), { headers: this.headers })
+      .subscribe({
+        next: () => this.dbStatus.set('ok'),
+        error: () => this.dbStatus.set('error'),
+      });
+  }
+
+  private deleteFromMongo() {
+    if (!this.configReady) return;
+    this.http
+      .post(`${MONGO_BASE_URL}/deleteMany`, this.mongoBody({ filter: {} }), { headers: this.headers })
+      .subscribe();
+  }
+
+  // ── Chart ─────────────────────────────────────────────────────────────────
 
   private buildChart() {
     const ctx = this.chartCanvas.nativeElement.getContext('2d')!;
@@ -124,23 +198,11 @@ export class Lab4Component implements AfterViewInit, OnDestroy {
   private updateChart() {
     if (!this.chart) return;
     const data = this.filtered;
-    this.chart.data.labels = data.map(r => 
+    this.chart.data.labels = data.map(r =>
       new Date(r.ts).toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
     this.chart.data.datasets[0].data = data.map(r => r.bpm);
     (this.chart.data.datasets[0] as any).pointRadius = data.length > 80 ? 0 : 3;
     this.chart.update('none');
-  }
-
-  private saveToStorage() {
-    const last500 = this.records().slice(-500);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(last500));
-  }
-
-  private loadFromStorage() {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) this.records.set(JSON.parse(raw));
-    } catch { /* ignore */ }
   }
 
   ngOnDestroy() { clearInterval(this.timer); this.chart?.destroy(); }
