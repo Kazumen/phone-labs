@@ -1,8 +1,8 @@
 import { Component, OnDestroy, AfterViewInit, ViewChild, ElementRef, signal, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { HttpClient, HttpHeaders } from '@angular/common/http';
+import { HttpClient } from '@angular/common/http';
 import { Chart, LineController, LineElement, PointElement, LinearScale, CategoryScale, Filler, Tooltip } from 'chart.js';
-import { mongoConfig, MONGO_BASE_URL } from '../../../mongo.config';
+import { API_URL } from '../../../api.config';
 
 Chart.register(LineController, LineElement, PointElement, LinearScale, CategoryScale, Filler, Tooltip);
 
@@ -15,8 +15,6 @@ const ZONES = [
   { name: 'Анаеробна',     min: 140, max: 170, color: '#f97316' },
   { name: 'Максимальна',   min: 170, max: Infinity, color: '#ef4444' },
 ];
-
-const COLLECTION = 'pulse_records';
 
 function getZone(bpm: number) {
   return ZONES.find(z => bpm >= z.min && bpm < z.max)!;
@@ -39,7 +37,7 @@ export class Lab4Component implements AfterViewInit, OnDestroy {
   records = signal<PulseRecord[]>([]);
   range = signal<'hour' | 'day' | 'week'>('hour');
   zones = ZONES;
-  dbStatus = signal<'idle' | 'loading' | 'ok' | 'error' | 'no-config'>('idle');
+  dbStatus = signal<'idle' | 'loading' | 'ok' | 'error'>('idle');
 
   /** Записи, що накопичились під час поточного сеансу (ще не збережені в БД) */
   private sessionBuffer: PulseRecord[] = [];
@@ -47,14 +45,6 @@ export class Lab4Component implements AfterViewInit, OnDestroy {
   private timer?: ReturnType<typeof setInterval>;
   private phase = 0;
   private baseHR = 72;
-
-  private get headers(): HttpHeaders {
-    return new HttpHeaders({ 'Content-Type': 'application/json', 'api-key': mongoConfig.apiKey });
-  }
-
-  private get configReady(): boolean {
-    return mongoConfig.apiKey !== 'YOUR_API_KEY_HERE' && mongoConfig.appId !== 'YOUR_APP_ID_HERE';
-  }
 
   get filtered(): PulseRecord[] {
     const now = Date.now();
@@ -67,7 +57,7 @@ export class Lab4Component implements AfterViewInit, OnDestroy {
   get count() { return this.filtered.length; }
 
   ngAfterViewInit() {
-    this.loadFromMongo();
+    this.loadPulse();
     this.buildChart();
   }
 
@@ -75,9 +65,8 @@ export class Lab4Component implements AfterViewInit, OnDestroy {
     if (this.recording()) {
       clearInterval(this.timer);
       this.recording.set(false);
-      // Save accumulated session records to MongoDB
       if (this.sessionBuffer.length) {
-        this.saveToMongo(this.sessionBuffer);
+        this.savePulse(this.sessionBuffer);
         this.sessionBuffer = [];
       }
     } else {
@@ -96,7 +85,7 @@ export class Lab4Component implements AfterViewInit, OnDestroy {
     this.records.set([]);
     this.sessionBuffer = [];
     this.updateChart();
-    this.deleteFromMongo();
+    this.deletePulse();
   }
 
   private tick() {
@@ -113,31 +102,15 @@ export class Lab4Component implements AfterViewInit, OnDestroy {
     this.updateChart();
   }
 
-  // ── MongoDB Atlas Data API calls ──────────────────────────────────────────
+  // ── Backend API calls ──────────────────────────────────────────────────────
 
-  private mongoBody(extra: object) {
-    return {
-      dataSource: mongoConfig.dataSource,
-      database: mongoConfig.database,
-      collection: COLLECTION,
-      ...extra,
-    };
-  }
-
-  private loadFromMongo() {
-    if (!this.configReady) { this.dbStatus.set('no-config'); return; }
+  private loadPulse() {
     this.dbStatus.set('loading');
-    const now = Date.now();
-    const weekAgo = now - 604800000;
-    this.http
-      .post<{ documents: PulseRecord[] }>(
-        `${MONGO_BASE_URL}/find`,
-        this.mongoBody({ filter: { ts: { $gte: weekAgo } }, sort: { ts: 1 }, limit: 2000 }),
-        { headers: this.headers }
-      )
+    const weekAgo = Date.now() - 604800000;
+    this.http.get<PulseRecord[]>(`${API_URL}/pulse?since=${weekAgo}`)
       .subscribe({
-        next: res => {
-          this.records.set(res.documents ?? []);
+        next: docs => {
+          this.records.set(docs ?? []);
           this.dbStatus.set('ok');
           this.updateChart();
         },
@@ -145,22 +118,17 @@ export class Lab4Component implements AfterViewInit, OnDestroy {
       });
   }
 
-  private saveToMongo(docs: PulseRecord[]) {
-    if (!this.configReady) return;
+  private savePulse(docs: PulseRecord[]) {
     this.dbStatus.set('loading');
-    this.http
-      .post(`${MONGO_BASE_URL}/insertMany`, this.mongoBody({ documents: docs }), { headers: this.headers })
+    this.http.post(`${API_URL}/pulse/bulk`, docs)
       .subscribe({
         next: () => this.dbStatus.set('ok'),
         error: () => this.dbStatus.set('error'),
       });
   }
 
-  private deleteFromMongo() {
-    if (!this.configReady) return;
-    this.http
-      .post(`${MONGO_BASE_URL}/deleteMany`, this.mongoBody({ filter: {} }), { headers: this.headers })
-      .subscribe();
+  private deletePulse() {
+    this.http.delete(`${API_URL}/pulse`).subscribe();
   }
 
   // ── Chart ─────────────────────────────────────────────────────────────────

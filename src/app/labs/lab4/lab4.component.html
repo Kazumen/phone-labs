@@ -9,17 +9,14 @@
       <span class="badge green">Симуляція пульсу</span>
     </div>
     <!-- DB status indicator -->
-    @if (dbStatus() === 'no-config') {
-      <div class="db-warn">⚠️ MongoDB не налаштовано — заповніть <code>src/mongo.config.ts</code></div>
-    }
     @if (dbStatus() === 'loading') {
-      <div class="db-info">⏳ Синхронізація з MongoDB…</div>
+      <div class="db-info">⏳ Синхронізація з бекендом…</div>
     }
     @if (dbStatus() === 'ok') {
-      <div class="db-ok">✅ MongoDB: синхронізовано</div>
+      <div class="db-ok">✅ Backend: синхронізовано</div>
     }
     @if (dbStatus() === 'error') {
-      <div class="db-warn">❌ Помилка з'єднання з MongoDB</div>
+      <div class="db-warn">❌ Помилка з'єднання з бекендом</div>
     }
   </div>
 

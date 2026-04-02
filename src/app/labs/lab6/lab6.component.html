@@ -8,11 +8,8 @@
       <span class="badge purple">MongoDB Atlas</span>
       <span class="badge green">Multi-device</span>
     </div>
-    @if (dbStatus() === 'no-config') {
-      <div class="db-warn" style="margin-top:8px">⚠️ MongoDB не налаштовано — заповніть <code>src/mongo.config.ts</code></div>
-    }
     @if (dbStatus() === 'error') {
-      <div class="db-warn" style="margin-top:8px">❌ Помилка з'єднання з MongoDB</div>
+      <div class="db-warn" style="margin-top:8px">❌ Помилка з'єднання з бекендом</div>
     }
   </div>
 
