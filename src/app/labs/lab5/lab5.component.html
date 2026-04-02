@@ -57,6 +57,26 @@
   </div>
 
   @if (totalInferences() > 0) {
+    <!-- Speed / cadence summary -->
+    <div class="card speed-card">
+      <div class="speed-grid">
+        <div class="speed-cell">
+          <div class="s-val">{{ walkSpeed() }}</div>
+          <div class="s-unit">км/год</div>
+        </div>
+        <div class="speed-divider"></div>
+        <div class="speed-cell">
+          <div class="s-val">{{ cadence() }}</div>
+          <div class="s-unit">кр/хв</div>
+        </div>
+        <div class="speed-divider"></div>
+        <div class="speed-cell">
+          <div class="s-val">{{ stepsInWindow() }}</div>
+          <div class="s-unit">кроків/2с</div>
+        </div>
+      </div>
+    </div>
+
     <!-- Top result -->
     <div class="card result-card">
       <div class="result-label">Визначено клас</div>
