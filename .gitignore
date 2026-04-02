@@ -2,8 +2,10 @@
 node_modules/
 .env
 
-# Angular build output
+# Angular build output & cache
+dist/
 frontend/dist/
+.angular/
 frontend/.angular/
 
 # OS
