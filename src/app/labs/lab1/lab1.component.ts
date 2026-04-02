@@ -30,20 +30,28 @@ export class Lab1Component implements OnDestroy {
     return Math.max(-this.BUBBLE_MAX, Math.min(this.BUBBLE_MAX, (this.beta() / 90) * this.BUBBLE_MAX));
   }
 
-  async start() {
+  start() {
     const DOE = DeviceOrientationEvent as any;
     if (typeof DOE.requestPermission === 'function') {
-      try {
-        const state = await DOE.requestPermission();
-        if (state !== 'granted') {
-          this.error.set('Доступ до сенсора заборонено. Увімкніть у Налаштування → Safari → Сенсори руху та орієнтації.');
-          return;
-        }
-      } catch (e: any) {
-        this.error.set('Помилка дозволу: ' + e.message);
-        return;
-      }
+      // Must call requestPermission() synchronously in user gesture handler (iOS 13+)
+      DOE.requestPermission()
+        .then((state: string) => {
+          if (state === 'granted') {
+            this.attachListener();
+          } else {
+            this.error.set('Доступ заборонено. Увімкніть у Налаштуваннях → Safari → Сенсори руху і орієнтації.');
+          }
+        })
+        .catch((e: any) => {
+          this.error.set('Помилка дозволу: ' + (e?.message ?? e));
+        });
+    } else {
+      // Android / desktop — no permission needed
+      this.attachListener();
     }
+  }
+
+  private attachListener() {
     window.addEventListener('deviceorientation', this.handler, true);
     this.started.set(true);
   }

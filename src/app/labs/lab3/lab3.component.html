@@ -2,9 +2,9 @@
   <div class="lab-header card">
     <div class="lab-num">Лабораторна 3 · Варіант 13</div>
     <h2>📡 Монітор наближення об'єкта</h2>
-    <p>Визначення наближення через аналіз яскравості камери (закрий камеру рукою — спрацює "контакт"). Автоматична відправка подій на REST API.</p>
+    <p>Визначення наближення через акселерометр (реальний сенсор). Црудке прискорення/швидкий рух = контакт. Автоматична відправка подій на REST API.</p>
     <div class="tag-row" style="margin-top:10px">
-      <span class="badge blue">Camera API</span>
+      <span class="badge blue">Accelerometer</span>
       <span class="badge purple">REST Upload</span>
       <span class="badge green">Авто-синхронізація</span>
     </div>
@@ -27,7 +27,7 @@
         <span class="badge red">✗ Помилка</span>
       }
     </div>
-    <p class="hint">📷 Потрібен дозвіл на камеру. Закривай об'єктив рукою — симулює наближення об'єкта.</p>
+    <p class="hint">📱 Різко потрясіть або стукніть телефон об столицю — спрацьовує «контакт». Потрібен дозвіл iOS 13+.</p>
     <div class="btn-row">
       @if (!monitoring()) {
         <button class="btn primary" (click)="startMonitoring()">▶ Почати</button>
@@ -39,13 +39,13 @@
   </div>
 
   @if (monitoring()) {
-    <!-- Brightness / proximity display -->
+    <!-- Accel / proximity display -->
     <div class="card distance-card" [class.near]="isClose">
-      <div class="dist-label">Яскравість кадру (100% = відкрито, 0% = накрито)</div>
-      <div class="dist-value">{{ brightness() }}<span class="unit"> %</span></div>
+      <div class="dist-label">Прискорення (m/s²)</div>
+      <div class="dist-value">{{ accel() }}<span class="unit"> m/s²</span></div>
       <div class="dist-status">
         @if (isClose) {
-          <span class="badge red">⚠ НАБЛИЖЕННЯ! (&lt; {{ THRESHOLD_PCT }}%)</span>
+          <span class="badge red">⚠ КОНТАКТ! (≥ {{ THRESHOLD }} m/s²)</span>
         } @else {
           <span class="badge green">✓ Об'єкт далеко</span>
         }
@@ -58,19 +58,18 @@
           <circle cx="100" cy="100" r="58" class="sonar-ring" />
           <circle cx="100" cy="100" r="39" class="sonar-ring" />
           <circle cx="100" cy="100" r="20" class="sonar-ring sonar-threshold" />
-          <text x="100" y="24"  text-anchor="middle" class="sonar-lbl">100%</text>
-          <text x="100" y="44"  text-anchor="middle" class="sonar-lbl">75%</text>
-          <text x="100" y="63"  text-anchor="middle" class="sonar-lbl">50%</text>
-          <text x="100" y="82"  text-anchor="middle" class="sonar-lbl sonar-threshold-lbl">30% ⚠</text>
+          <text x="100" y="24"  text-anchor="middle" class="sonar-lbl">200см</text>
+          <text x="100" y="44"  text-anchor="middle" class="sonar-lbl">150см</text>
+          <text x="100" y="63"  text-anchor="middle" class="sonar-lbl">100см</text>
+          <text x="100" y="82"  text-anchor="middle" class="sonar-lbl sonar-threshold-lbl">50см ⚠</text>
           <circle cx="100" cy="100" r="4" class="sonar-origin" />
-          <circle cx="100" [attr.cy]="100 - (brightness() / 100 * 78)" r="7"
+          <circle cx="100" [attr.cy]="100 - (distance() / 200 * 78)" r="6"
                   class="sonar-dot" [class.sonar-near]="isClose" />
         </svg>
       </div>
 
-      <!-- Brightness bar -->
       <div class="dist-bar-bg">
-        <div class="dist-bar" [style.width.%]="brightness()"></div>
+        <div class="dist-bar" [style.width.%]="(accel() / 30) * 100"></div>
       </div>
     </div>
   }
@@ -86,8 +85,8 @@
       <div class="value">{{ avgDuration | number:'1.1-1' }} с</div>
     </div>
     <div class="data-cell">
-      <div class="label">Мін. яскравість</div>
-      <div class="value">{{ minBrightness }}%</div>
+      <div class="label">Макс. приск.</div>
+      <div class="value">{{ maxAccel }} m/s²</div>
     </div>
     <div class="data-cell">
       <div class="label">Відправлено</div>
@@ -101,13 +100,13 @@
       <h3>Журнал контактів</h3>
       <div class="log-table">
         <div class="log-header">
-          <span>#</span><span>Час</span><span>Яскрав.</span><span>Тривалість</span>
+          <span>#</span><span>Час</span><span>Приск.</span><span>Трив</span>
         </div>
         @for (ev of contacts().slice(0, 8); track ev.id) {
           <div class="log-row">
             <span>{{ ev.id }}</span>
             <span>{{ formatTime(ev.time) }}</span>
-            <span>{{ ev.distance }}%</span>
+            <span>{{ ev.accel }} m/s²</span>
             <span>{{ ev.duration }} с</span>
           </div>
         }
@@ -115,3 +114,5 @@
     </div>
   }
 </div>
+
+
