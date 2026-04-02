@@ -1,0 +1,83 @@
+<div class="lab-page">
+  <div class="lab-header card">
+    <div class="lab-num">Лабораторна 4 · Варіант 13</div>
+    <h2>❤️ Пульсометр — Симуляція + Графік</h2>
+    <p>Генерація даних пульсу (60–180 bpm), запис у localStorage (SQLite/Room), графік з зонами навантаження.</p>
+    <div class="tag-row" style="margin-top:10px">
+      <span class="badge blue">Chart.js</span>
+      <span class="badge purple">localStorage</span>
+      <span class="badge green">Симуляція пульсу</span>
+    </div>
+  </div>
+
+  <!-- BPM + Zone -->
+  <div class="card bpm-card">
+    <div class="bpm-display"
+         [style.color]="currentZone().color"
+         [style.animation-duration.ms]="bpm() ? 60000 / bpm() : 1000"
+         [class.beating]="recording() && bpm() > 0">
+      {{ bpm() || '- -' }}
+      <span class="bpm-unit">BPM</span>
+    </div>
+    <div class="zone-badge" [style.background]="currentZone().color + '22'" [style.color]="currentZone().color">
+      {{ currentZone().name }}
+    </div>
+    <div class="btn-row" style="justify-content: center; margin-top: 14px;">
+      <button class="btn" [class]="recording() ? 'danger' : 'primary'" (click)="startStop()">
+        {{ recording() ? '■ Зупинити запис' : '▶ Почати запис' }}
+      </button>
+      <button class="btn secondary" (click)="clearHistory()">🗑</button>
+    </div>
+  </div>
+
+  <!-- Zones legend -->
+  <div class="card">
+    <h3>Зони навантаження</h3>
+    <div class="zones-list">
+      @for (z of zones; track z.name) {
+        <div class="zone-row" [class.active]="z.name === currentZone().name">
+          <span class="zone-dot" [style.background]="z.color"></span>
+          <span class="zone-name">{{ z.name }}</span>
+          <span class="zone-range">
+            {{ z.min }}–{{ z.max === 9007199254740991 ? '180+' : z.max }} bpm
+          </span>
+        </div>
+      }
+    </div>
+  </div>
+
+  <!-- Chart + timerange -->
+  <div class="card chart-card">
+    <div class="section-header">
+      <h3>Графік пульсу</h3>
+      <div class="range-tabs">
+          <button [class.active]="range() === 'hour'" (click)="setRange('hour')">1г</button>
+        <button [class.active]="range() === 'day'"  (click)="setRange('day')">1д</button>
+        <button [class.active]="range() === 'week'" (click)="setRange('week')">7д</button>
+      </div>
+    </div>
+    <div class="chart-wrap">
+      <canvas #chartCanvas></canvas>
+    </div>
+  </div>
+
+  <!-- Stats -->
+  <div class="data-grid">
+    <div class="data-cell">
+      <div class="label">Записів</div>
+      <div class="value">{{ count }}</div>
+    </div>
+    <div class="data-cell">
+      <div class="label">Середній</div>
+      <div class="value">{{ avg }} bpm</div>
+    </div>
+    <div class="data-cell">
+      <div class="label">Мін.</div>
+      <div class="value">{{ min }} bpm</div>
+    </div>
+    <div class="data-cell">
+      <div class="label">Макс.</div>
+      <div class="value">{{ max }} bpm</div>
+    </div>
+  </div>
+</div>

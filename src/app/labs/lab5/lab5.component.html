@@ -1,0 +1,116 @@
+<div class="lab-page">
+  <div class="lab-header card">
+    <div class="lab-num">Лабораторна 5 · Варіант 13</div>
+    <h2>🧠 Визначення стилю ходьби (ML)</h2>
+    <p>Класифікація за допомогою евристичної ML-моделі: 5 класів ходьби. Використовує реальний акселерометр та гіроскоп iPhone.</p>
+    <div class="tag-row" style="margin-top:10px">
+      <span class="badge blue">DeviceMotion API</span>
+      <span class="badge yellow">Акселерометр + Гіроскоп</span>
+      <span class="badge green">5 класів</span>
+    </div>
+  </div>
+
+  <!-- Error -->
+  @if (error()) {
+    <div class="card error-card">⚠ {{ error() }}</div>
+  }
+
+  <!-- Sensor info -->
+  <div class="card">
+    <h3>Як користуватись</h3>
+    <div class="hint-list">
+      <div class="hint-row">📱 Тримай телефон вертикально в руці або кишені</div>
+      <div class="hint-row">▶ Натисни "Запустити" і дай дозвіл на сенсори (iOS)</div>
+      <div class="hint-row">🚶 Ходи різними стилями — алгоритм визначить клас автоматично</div>
+    </div>
+  </div>
+
+  <!-- Class reference -->
+  <div class="card">
+    <h3>Класи ходьби</h3>
+    <div class="pattern-grid">
+      @for (p of PATTERNS; track p.idx) {
+        <div class="pattern-btn" [class.active]="topClass() === classes()[p.idx]?.label">
+          <span class="p-icon">{{ classes()[p.idx]?.icon }}</span>
+          <span class="p-label">{{ classes()[p.idx]?.label }}</span>
+        </div>
+      }
+    </div>
+  </div>
+
+  <!-- Control -->
+  <div class="card infer-ctrl">
+    <div class="btn-row">
+      <button class="btn" [class]="analyzing() ? 'danger' : 'primary'" (click)="startStop()">
+        {{ analyzing() ? '■ Зупинити' : '▶ Запустити аналіз' }}
+      </button>
+      @if (inferring()) {
+        <span class="badge yellow">⏳ Аналіз...</span>
+      }
+      @if (analyzing() && !inferring() && totalInferences() === 0) {
+        <span class="badge blue">📡 Збір даних...</span>
+      }
+    </div>
+    @if (inferring()) {
+      <div class="inference-progress"><div class="inference-bar"></div></div>
+    }
+  </div>
+
+  @if (totalInferences() > 0) {
+    <!-- Top result -->
+    <div class="card result-card">
+      <div class="result-label">Визначено клас</div>
+      <div class="result-class">{{ topClass() }}</div>
+      <div class="conf-bar-bg">
+        <div class="conf-bar" [style.width.%]="confidence()"></div>
+      </div>
+      <div class="conf-label">Впевненість: {{ confidence() }}%</div>
+    </div>
+
+    <!-- All class probabilities -->
+    <div class="card">
+      <h3>Ймовірності класів</h3>
+      <div class="class-list">
+        @for (c of classes(); track c.label) {
+          <div class="class-row" [class.best]="c.label === topClass()">
+            <span class="c-icon">{{ c.icon }}</span>
+            <span class="c-name">{{ c.label }}</span>
+            <div class="c-bar-bg">
+              <div class="c-bar" [style.width.%]="c.probability * 100"></div>
+            </div>
+            <span class="c-pct">{{ (c.probability * 100) | number:'1.1-1' }}%</span>
+          </div>
+        }
+      </div>
+    </div>
+
+    <!-- Input features (real sensor values) -->
+    <div class="card">
+      <h3>Вектор ознак 6D (реальні дані)</h3>
+      <div class="features-grid">
+        @for (label of ['AccX','AccY','AccZ','GyrX','GyrY','GyrZ']; let i = $index; track label) {
+          <div class="feat-cell">
+            <div class="label">{{ label }}</div>
+            <div class="value">{{ inputFeatures()[i] }}</div>
+          </div>
+        }
+      </div>
+    </div>
+
+    <!-- Model metrics -->
+    <div class="data-grid">
+      <div class="data-cell">
+        <div class="label">Впевненість</div>
+        <div class="value">{{ accuracy() }}%</div>
+      </div>
+      <div class="data-cell">
+        <div class="label">Час аналізу</div>
+        <div class="value">{{ inferenceTime() }} мс</div>
+      </div>
+      <div class="data-cell">
+        <div class="label">Запусків</div>
+        <div class="value">{{ totalInferences() }}</div>
+      </div>
+    </div>
+  }
+</div>

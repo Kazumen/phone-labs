@@ -1,0 +1,39 @@
+.btn-row { display: flex; gap: 8px; }
+.hint { font-size: .78rem; color: var(--muted); margin: 0 0 12px; line-height: 1.5; }
+.error-card { color: var(--red); font-size: .85rem; border-color: var(--red); }
+
+.distance-card {
+  text-align: center;
+  transition: border-color .3s;
+  &.near { border-color: var(--red); background: rgba(239,68,68,.05); }
+}
+.dist-label { font-size: .7rem; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; }
+.dist-value { font-size: 3rem; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1; margin-bottom: 8px; .unit { font-size: 1.2rem; font-weight: 400; color: var(--muted); } }
+.dist-status { margin-bottom: 14px; }
+.dist-bar-bg { background: var(--border); border-radius: 4px; height: 6px; overflow: hidden; }
+.dist-bar {
+  height: 100%; border-radius: 4px;
+  background: linear-gradient(90deg, var(--green), var(--yellow), var(--red));
+  transition: width .4s ease;
+}
+
+.log-table { font-size: .78rem; }
+.log-header, .log-row { display: grid; grid-template-columns: 28px 1fr 80px 80px; gap: 8px; padding: 5px 0; }
+.log-header { color: var(--accent); border-bottom: 1px solid var(--border); font-weight: 600; margin-bottom: 4px; }
+.log-row { border-bottom: 1px solid rgba(51,65,85,.5); color: var(--muted); }
+.log-row span:first-child { color: var(--text); font-weight: 600; }
+
+/* Sonar */
+.sonar-wrap { display: flex; justify-content: center; margin: 14px 0 8px; }
+.sonar-svg {
+  width: 180px; height: 180px; overflow: visible;
+  .sonar-ring { fill: none; stroke: var(--border); stroke-width: 1; }
+  .sonar-threshold { stroke: var(--yellow); stroke-dasharray: 4 3; stroke-width: 1.5; }
+  .sonar-lbl { fill: var(--muted); font-size: 9px; }
+  .sonar-threshold-lbl { fill: var(--yellow); font-weight: 600; }
+  .sonar-origin { fill: var(--accent); }
+  .sonar-dot { fill: var(--green); transition: fill .3s; }
+  .sonar-near { fill: var(--red) !important; animation: sonar-blink .5s ease-in-out infinite; }
+  &.near .sonar-threshold { stroke: var(--red); }
+}
+@keyframes sonar-blink { 0%, 100% { opacity: 1; } 50% { opacity: .25; } }

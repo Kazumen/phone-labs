@@ -1,0 +1,114 @@
+<div class="lab-page">
+  <div class="lab-header card">
+    <div class="lab-num">Лабораторна 6 · Варіант 13</div>
+    <h2>🔄 Синхронізація — Пульс + Авторизація</h2>
+    <p>Продовження Лаб 4. Реєстрація/вхід, синхронізація з хмарним сховищем, дані з кількох пристроїв різними кольорами.</p>
+    <div class="tag-row" style="margin-top:10px">
+      <span class="badge blue">Auth</span>
+      <span class="badge purple">Firebase sync</span>
+      <span class="badge green">Multi-device</span>
+    </div>
+  </div>
+
+  <!-- Auth forms -->
+  @if (mode() !== 'app') {
+    <div class="card auth-card">
+      <div class="auth-tabs">
+        <button [class.active]="mode() === 'login'"    (click)="mode.set('login');error.set('')">Вхід</button>
+        <button [class.active]="mode() === 'register'" (click)="mode.set('register');error.set('')">Реєстрація</button>
+      </div>
+
+      @if (error()) {
+        <p class="auth-error">{{ error() }}</p>
+      }
+
+      @if (mode() === 'login') {
+        <label>Email
+          <input type="email" [(ngModel)]="loginEmail" placeholder="user@example.com" />
+        </label>
+        <label>Пароль
+          <input type="password" [(ngModel)]="loginPass" placeholder="••••••" />
+        </label>
+        <button class="btn primary" style="width:100%" (click)="login()">Увійти</button>
+      }
+
+      @if (mode() === 'register') {
+        <label>Ім'я
+          <input [(ngModel)]="regName" placeholder="Ваше ім'я" />
+        </label>
+        <label>Email
+          <input type="email" [(ngModel)]="regEmail" placeholder="user@example.com" />
+        </label>
+        <label>Пароль (мін. 6 символів)
+          <input type="password" [(ngModel)]="regPass" placeholder="••••••" />
+        </label>
+        <button class="btn primary" style="width:100%" (click)="register()">Зареєструватись</button>
+      }
+    </div>
+  }
+
+  @if (mode() === 'app' && user()) {
+    <!-- User bar -->
+    <div class="card user-bar">
+      <span>👤 {{ user()!.name }} ({{ user()!.email }})</span>
+      <div class="user-bar-right">
+        <span class="badge" [class]="syncBadgeClass()">{{ syncBadgeLabel() }}</span>
+        <button class="btn secondary btn-sm" (click)="logout()">Вийти</button>
+      </div>
+    </div>
+
+    <!-- Record controls -->
+    <div class="card">
+      <div class="section-header">
+        <h3>Запис пульсу</h3>
+        <button class="btn" [class]="recording() ? 'danger' : 'primary'" (click)="startStop()">
+          {{ recording() ? '■ Зупинити' : '▶ Почати' }}
+        </button>
+      </div>
+      <p style="font-size:.8rem">Дані симулюються від 3 пристроїв по черзі.</p>
+    </div>
+
+    <!-- Device filter -->
+    <div class="card">
+      <h3>Фільтр пристроїв</h3>
+      <div class="device-list">
+        @for (dev of devices; track dev.id) {
+          <div class="device-row" (click)="toggleDevice(dev.id)"
+            [class.hidden-dev]="!visibleDevices().has(dev.id)">
+            <span class="dev-dot" [style.background]="dev.color"></span>
+            <span>{{ dev.name }}</span>
+            <span class="dev-count">
+              ({{ records() | devCount:dev.id }})
+            </span>
+          </div>
+        }
+      </div>
+    </div>
+
+    <!-- Multi-device chart -->
+    <div class="card chart-card">
+      <h3>Графік (всі пристрої)</h3>
+      <div class="chart-wrap">
+        <canvas #chartCanvas></canvas>
+      </div>
+    </div>
+
+    <!-- Stats & clear -->
+    <div class="card">
+      <div class="section-header">
+        <h3>Загальна статистика</h3>
+        <button class="btn secondary btn-sm" (click)="clearHistory()">🗑 Очистити</button>
+      </div>
+      <div class="data-grid">
+        <div class="data-cell">
+          <div class="label">Записів</div>
+          <div class="value">{{ records().length }}</div>
+        </div>
+        <div class="data-cell">
+          <div class="label">Пристроїв</div>
+          <div class="value">{{ devices.length }}</div>
+        </div>
+      </div>
+    </div>
+  }
+</div>

@@ -1,0 +1,24 @@
+﻿<div class="app-shell">
+  <nav class="sidebar">
+    <div class="logo">
+      <span class="logo-icon">📱</span>
+      <span class="logo-text">Var <strong>13</strong></span>
+    </div>
+    <ul class="nav-list">
+      @for (lab of labs; track lab.id) {
+        <li>
+          <a class="nav-item" [routerLink]="[&quot;/lab&quot; + lab.id]" routerLinkActive="active">
+            <span class="nav-num">{{ lab.id }}</span>
+            <span class="nav-info">
+              <span class="nav-title">{{ lab.title }}</span>
+              <span class="nav-sub">{{ lab.subtitle }}</span>
+            </span>
+          </a>
+        </li>
+      }
+    </ul>
+  </nav>
+  <main class="content">
+    <router-outlet />
+  </main>
+</div>
