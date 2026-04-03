@@ -4,7 +4,7 @@ import { CommonModule } from '@angular/common';
 interface ContactEvent {
   id: number;
   time: number;
-  accel: number;   // peak acceleration m/s²
+  distance: number; // 0-100 (brightness-based %)
   duration: number;
 }
 
@@ -15,103 +15,110 @@ interface ContactEvent {
   styleUrl: './lab3.component.scss',
 })
 export class Lab3Component implements OnDestroy {
-  /** Acceleration threshold for "contact" detection (m/s²) */
-  readonly THRESHOLD = 15;
+  // Threshold: brightness below this % means "object close"
+  readonly THRESHOLD_PCT = 30;
   readonly ENDPOINT = 'https://jsonplaceholder.typicode.com/posts';
 
-  monitoring    = signal(false);
-  /** Raw linear acceleration magnitude (m/s²) */
-  accel         = signal(0);
-  /** Mapped to 0-200cm for sonar display */
-  distance      = signal(200);
-  contacts      = signal<ContactEvent[]>([]);
-  syncStatus    = signal<'idle' | 'syncing' | 'ok' | 'error'>('idle');
-  uploadCount   = signal(0);
-  error         = signal('');
+  monitoring   = signal(false);
+  /** 0–100: brightness percent. 0 = fully covered (dark), 100 = fully open */
+  brightness   = signal(100);
+  contacts     = signal<ContactEvent[]>([]);
+  syncStatus   = signal<'idle' | 'syncing' | 'ok' | 'error'>('idle');
+  uploadCount  = signal(0);
+  error        = signal('');
+  cameraActive = signal(false);
   nextId = 1;
 
-  private contactAt: number | null = null;
-  private peakAccel = 0;
-  private handler = (e: DeviceMotionEvent) => this.handleMotion(e);
+  private proximateAt: number | null = null;
+  private stream?: MediaStream;
+  private video?: HTMLVideoElement;
+  private canvas?: HTMLCanvasElement;
+  private ctx?: CanvasRenderingContext2D;
+  private rafId?: number;
 
-  get isClose()        { return this.accel() >= this.THRESHOLD; }
-  get totalContacts()  { return this.contacts().length; }
+  get isClose() { return this.brightness() < this.THRESHOLD_PCT; }
+  get totalContacts() { return this.contacts().length; }
   get avgDuration() {
     const c = this.contacts();
     return c.length ? c.reduce((s, e) => s + e.duration, 0) / c.length : 0;
   }
-  get maxAccel() {
+  get minBrightness() {
     const c = this.contacts();
-    return c.length ? Math.max(...c.map(e => e.accel)) : 0;
+    return c.length ? Math.min(...c.map(e => e.distance)) : 0;
   }
 
   constructor(private zone: NgZone) {}
 
-  startMonitoring() {
+  async startMonitoring() {
     this.error.set('');
-    const DME = DeviceMotionEvent as any;
-    if (typeof DME.requestPermission === 'function') {
-      // iOS 13+ — must call synchronously in user gesture
-      DME.requestPermission()
-        .then((state: string) => {
-          if (state === 'granted') {
-            this.attachListener();
-          } else {
-            this.zone.run(() =>
-              this.error.set('Доступ до сенсора заборонено. Увімкніть у Safari → Налаштування → Сенсори руху.')
-            );
-          }
-        })
-        .catch((e: any) => {
-          this.zone.run(() => this.error.set('Помилка: ' + (e?.message ?? e)));
-        });
-    } else {
-      this.attachListener();
+    try {
+      // Request rear camera (environment facing) — best for covering with hand
+      this.stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'environment', width: 64, height: 64 }
+      });
+
+      this.video  = document.createElement('video');
+      this.canvas = document.createElement('canvas');
+      this.canvas.width = 16;
+      this.canvas.height = 16;
+      this.ctx = this.canvas.getContext('2d', { willReadFrequently: true })!;
+
+      this.video.srcObject = this.stream;
+      this.video.setAttribute('playsinline', 'true');
+      await this.video.play();
+
+      this.monitoring.set(true);
+      this.cameraActive.set(true);
+      this.loop();
+    } catch (e: any) {
+      this.error.set('Немає доступу до камери: ' + (e?.message ?? e));
     }
   }
 
-  private attachListener() {
-    window.addEventListener('devicemotion', this.handler, true);
-    this.zone.run(() => this.monitoring.set(true));
-  }
-
   stopMonitoring() {
-    window.removeEventListener('devicemotion', this.handler, true);
+    if (this.rafId) cancelAnimationFrame(this.rafId);
+    this.stream?.getTracks().forEach(t => t.stop());
     this.monitoring.set(false);
-    this.contactAt = null;
-    this.peakAccel = 0;
+    this.cameraActive.set(false);
+    this.proximateAt = null;
   }
 
-  private handleMotion(e: DeviceMotionEvent) {
-    const a = e.acceleration ?? e.accelerationIncludingGravity;
-    if (!a) return;
-    const mag = Math.sqrt((a.x ?? 0) ** 2 + (a.y ?? 0) ** 2 + (a.z ?? 0) ** 2);
-    // Map accel to "distance": 0 m/s² → 200cm, 20+ m/s² → 5cm
-    const dist = Math.round(Math.max(5, 200 - mag * 9.75));
+  private loop() {
+    if (!this.ctx || !this.video || !this.canvas) return;
+    this.ctx.drawImage(this.video, 0, 0, 16, 16);
+    const data = this.ctx.getImageData(0, 0, 16, 16).data;
+
+    // Average luminance (0–255)
+    let sum = 0;
+    for (let i = 0; i < data.length; i += 4) {
+      sum += 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+    }
+    const lum = sum / (16 * 16);
+    const pct = Math.round((lum / 255) * 100);
 
     this.zone.run(() => {
-      this.accel.set(+mag.toFixed(2));
-      this.distance.set(dist);
-
-      if (mag >= this.THRESHOLD && this.contactAt === null) {
-        this.contactAt = Date.now();
-        this.peakAccel = mag;
-      } else if (mag >= this.THRESHOLD) {
-        if (mag > this.peakAccel) this.peakAccel = mag;
-      } else if (mag < this.THRESHOLD * 0.5 && this.contactAt !== null) {
-        const dur = Math.round((Date.now() - this.contactAt) / 1000);
-        const ev: ContactEvent = {
-          id: this.nextId++,
-          time: this.contactAt,
-          accel: +this.peakAccel.toFixed(2),
-          duration: Math.max(1, dur),
-        };
-        this.contacts.update(c => [ev, ...c]);
-        this.contactAt = null;
-        this.peakAccel = 0;
-        this.uploadEvent(ev);
-      }
+      this.brightness.set(pct);
+      this.detectProximity(pct);
     });
+
+    this.rafId = requestAnimationFrame(() => this.loop());
+  }
+
+  private detectProximity(pct: number) {
+    if (pct < this.THRESHOLD_PCT && this.proximateAt === null) {
+      this.proximateAt = Date.now();
+    } else if (pct >= this.THRESHOLD_PCT && this.proximateAt !== null) {
+      const dur = Math.round((Date.now() - this.proximateAt) / 1000);
+      const ev: ContactEvent = {
+        id: this.nextId++,
+        time: this.proximateAt,
+        distance: pct,
+        duration: dur,
+      };
+      this.contacts.update(c => [ev, ...c]);
+      this.proximateAt = null;
+      this.uploadEvent(ev);
+    }
   }
 
   private async uploadEvent(ev: ContactEvent) {
@@ -120,18 +127,30 @@ export class Lab3Component implements OnDestroy {
       const res = await fetch(this.ENDPOINT, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: 'proximity_event', body: JSON.stringify(ev), userId: 1 }),
+        body: JSON.stringify({
+          title: 'proximity_event',
+          body: JSON.stringify(ev),
+          userId: 1,
+        }),
       });
-      this.syncStatus.set(res.ok ? 'ok' : 'error');
-      if (res.ok) this.uploadCount.update(n => n + 1);
+      if (res.ok) {
+        this.syncStatus.set('ok');
+        this.uploadCount.update(n => n + 1);
+      } else {
+        this.syncStatus.set('error');
+      }
     } catch {
       this.syncStatus.set('error');
     }
     setTimeout(() => this.zone.run(() => this.syncStatus.set('idle')), 2500);
   }
 
-  formatTime(ts: number) { return new Date(ts).toLocaleTimeString('uk-UA'); }
+  formatTime(ts: number) {
+    return new Date(ts).toLocaleTimeString('uk-UA');
+  }
+
   clearHistory() { this.contacts.set([]); this.uploadCount.set(0); }
+
   ngOnDestroy() { this.stopMonitoring(); }
 }
 
