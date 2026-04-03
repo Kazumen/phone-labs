@@ -12,7 +12,7 @@
 
   <!-- Error -->
   @if (error()) {
-    <div class="card error-card">&#x26A0; {{ error() }}</div>
+    <div class="card error-card">⚠ {{ error() }}</div>
   }
 
   <!-- Control -->
@@ -20,21 +20,21 @@
     <div class="section-header">
       <h3>Моніторинг</h3>
       @if (syncStatus() === 'syncing') {
-        <span class="badge yellow">&#x2191; Відправка</span>
+        <span class="badge yellow">↑ Відправка</span>
       } @else if (syncStatus() === 'ok') {
-        <span class="badge green">&#x2713; Збережено</span>
+        <span class="badge green">✓ Збережено</span>
       } @else if (syncStatus() === 'error') {
-        <span class="badge red">&#x2717; Помилка</span>
+        <span class="badge red">✗ Помилка</span>
       }
     </div>
-    <p class="hint">&#x1F4F7; Потрібен дозвіл на камеру. Закривай об'єктив рукою — симулює наближення об'єкта.</p>
+    <p class="hint">📷 Потрібен дозвіл на камеру. Закривай об'єктив рукою — симулює наближення об'єкта.</p>
     <div class="btn-row">
       @if (!monitoring()) {
-        <button class="btn primary" (click)="startMonitoring()">&#x25B6; Почати</button>
+        <button class="btn primary" (click)="startMonitoring()">▶ Почати</button>
       } @else {
-        <button class="btn danger" (click)="stopMonitoring()">&#x25A0; Зупинити</button>
+        <button class="btn danger" (click)="stopMonitoring()">■ Зупинити</button>
       }
-      <button class="btn secondary" (click)="clearHistory()">&#x1F5D1; Очистити</button>
+      <button class="btn secondary" (click)="clearHistory()">🗑 Очистити</button>
     </div>
   </div>
 
@@ -45,9 +45,9 @@
       <div class="dist-value">{{ brightness() }}<span class="unit"> %</span></div>
       <div class="dist-status">
         @if (isClose) {
-          <span class="badge red">&#x26A0; НАБЛИЖЕННЯ! (&lt; {{ THRESHOLD_PCT }}%)</span>
+          <span class="badge red">⚠ НАБЛИЖЕННЯ! (&lt; {{ THRESHOLD_PCT }}%)</span>
         } @else {
-          <span class="badge green">&#x2713; Об'єкт далеко</span>
+          <span class="badge green">✓ Об'єкт далеко</span>
         }
       </div>
 
@@ -61,7 +61,7 @@
           <text x="100" y="24"  text-anchor="middle" class="sonar-lbl">100%</text>
           <text x="100" y="44"  text-anchor="middle" class="sonar-lbl">75%</text>
           <text x="100" y="63"  text-anchor="middle" class="sonar-lbl">50%</text>
-          <text x="100" y="82"  text-anchor="middle" class="sonar-lbl sonar-threshold-lbl">30% &#x26A0;</text>
+          <text x="100" y="82"  text-anchor="middle" class="sonar-lbl sonar-threshold-lbl">30% ⚠</text>
           <circle cx="100" cy="100" r="4" class="sonar-origin" />
           <circle cx="100" [attr.cy]="100 - (brightness() / 100 * 78)" r="7"
                   class="sonar-dot" [class.sonar-near]="isClose" />
