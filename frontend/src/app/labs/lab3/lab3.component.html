@@ -1,12 +1,12 @@
-<div class="lab-page">
+﻿<div class="lab-page">
   <div class="lab-header card">
     <div class="lab-num">Лабораторна 3 · Варіант 13</div>
     <h2>📡 Монітор наближення об'єкта</h2>
-    <p>Відстеження переміщення від початкової позиції. Алгоритм: двійне інтегрування акселерометра (метод dead reckoning + ZUPT). Авто-синхронізація подій на REST API.</p>
+    <p>Визначення наближення через акселерометр (реальний сенсор). Різке прискорення/швидкий рух = контакт. Автоматична відправка подій на REST API.</p>
     <div class="tag-row" style="margin-top:10px">
-      <span class="badge blue">Dead Reckoning</span>
-      <span class="badge purple">ZUPT</span>
-      <span class="badge green">REST API</span>
+      <span class="badge blue">Accelerometer</span>
+      <span class="badge purple">REST Upload</span>
+      <span class="badge green">Авто-синхронізація</span>
     </div>
   </div>
 
@@ -27,28 +27,27 @@
         <span class="badge red">✗ Помилка</span>
       }
     </div>
-    <p class="hint">� Поклади телефон біля об'єкта → «Почати». Відходь → displacement зростає. Повернісь — спрацьовує «контакт». ‘«Скинути» — ресет початкової точки. iOS 13+ необхідно.</p>
+    <p class="hint">📱 Різко потрясіть або стукніть телефон об стіл — спрацьовує «контакт». Потрібен дозвіл iOS 13+.</p>
     <div class="btn-row">
       @if (!monitoring()) {
         <button class="btn primary" (click)="startMonitoring()">▶ Почати</button>
       } @else {
         <button class="btn danger" (click)="stopMonitoring()">■ Зупинити</button>
-        <button class="btn secondary" (click)="resetOrigin()">⟳ Скинути</button>
       }
-      <button class="btn secondary" (click)="clearHistory()">🗑</button>
+      <button class="btn secondary" (click)="clearHistory()">🗑 Очистити</button>
     </div>
   </div>
 
   @if (monitoring()) {
     <!-- Accel / proximity display -->
     <div class="card distance-card" [class.near]="isClose">
-      <div class="dist-label">Переміщення від початкової точки</div>
-      <div class="dist-value">{{ displacement() }}<span class="unit"> см</span></div>
+      <div class="dist-label">Прискорення (m/s²)</div>
+      <div class="dist-value">{{ accel() }}<span class="unit"> m/s²</span></div>
       <div class="dist-status">
         @if (isClose) {
-          <span class="badge green">✓ Поряд з об'єктом (≤ {{ CONTACT_CM }} см)</span>
+          <span class="badge red">⚠ КОНТАКТ! (≥ {{ THRESHOLD }} m/s²)</span>
         } @else {
-          <span class="badge yellow">→ Віддалення {{ displacement() }} см</span>
+          <span class="badge green">✓ Об'єкт далеко</span>
         }
       </div>
 
@@ -62,15 +61,15 @@
           <text x="100" y="24"  text-anchor="middle" class="sonar-lbl">200см</text>
           <text x="100" y="44"  text-anchor="middle" class="sonar-lbl">150см</text>
           <text x="100" y="63"  text-anchor="middle" class="sonar-lbl">100см</text>
-          <text x="100" y="82"  text-anchor="middle" class="sonar-lbl sonar-threshold-lbl">30см ▣</text>
+          <text x="100" y="82"  text-anchor="middle" class="sonar-lbl sonar-threshold-lbl">50см ⚠</text>
           <circle cx="100" cy="100" r="4" class="sonar-origin" />
-          <circle cx="100" [attr.cy]="100 - (dispForSonar / 200 * 78)" r="6"
+          <circle cx="100" [attr.cy]="100 - (distance() / 200 * 78)" r="6"
                   class="sonar-dot" [class.sonar-near]="isClose" />
         </svg>
       </div>
 
       <div class="dist-bar-bg">
-        <div class="dist-bar" [style.width.%]="dispForSonar / 200 * 100"></div>
+        <div class="dist-bar" [style.width.%]="(accel() / 30) * 100"></div>
       </div>
     </div>
   }
@@ -78,24 +77,16 @@
   <!-- Stats -->
   <div class="data-grid">
     <div class="data-cell">
-      <div class="label">Переміщ.</div>
-      <div class="value">{{ displacement() }} см</div>
-    </div>
-    <div class="data-cell">
-      <div class="label">Швидкість</div>
-      <div class="value">{{ speed() }} см/с</div>
-    </div>
-    <div class="data-cell">
-      <div class="label">Прискор.</div>
-      <div class="value">{{ accelMag() }} m/s²</div>
-    </div>
-    <div class="data-cell">
       <div class="label">Контактів</div>
       <div class="value">{{ totalContacts }}</div>
     </div>
     <div class="data-cell">
-      <div class="label">Макс. відд.</div>
-      <div class="value">{{ maxPeakCm }} см</div>
+      <div class="label">Сер. тривалість</div>
+      <div class="value">{{ avgDuration | number:'1.1-1' }} с</div>
+    </div>
+    <div class="data-cell">
+      <div class="label">Макс. приск.</div>
+      <div class="value">{{ maxAccel }} m/s²</div>
     </div>
     <div class="data-cell">
       <div class="label">Відправлено</div>
@@ -109,13 +100,13 @@
       <h3>Журнал контактів</h3>
       <div class="log-table">
         <div class="log-header">
-          <span>#</span><span>Час</span><span>Макс. відд.</span><span>Трив</span>
+          <span>#</span><span>Час</span><span>Приск.</span><span>Трив</span>
         </div>
         @for (ev of contacts().slice(0, 8); track ev.id) {
           <div class="log-row">
             <span>{{ ev.id }}</span>
             <span>{{ formatTime(ev.time) }}</span>
-            <span>{{ ev.peakCm }} см</span>
+            <span>{{ ev.accel }} m/s²</span>
             <span>{{ ev.duration }} с</span>
           </div>
         }
@@ -123,5 +114,3 @@
     </div>
   }
 </div>
-
-
