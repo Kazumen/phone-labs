@@ -1,6 +1,7 @@
-require('dotenv').config();
+require('dotenv').config({ path: require('path').join(__dirname, '.env') });
 const express  = require('express');
 const cors     = require('cors');
+const path     = require('path');
 const mongoose = require('mongoose');
 const bcrypt   = require('bcryptjs');
 const jwt      = require('jsonwebtoken');
@@ -8,6 +9,10 @@ const jwt      = require('jsonwebtoken');
 const app = express();
 app.use(cors());
 app.use(express.json());
+
+// ── Serve Angular static files ────────────────────────────────────────────────
+const FRONTEND_DIST = path.join(__dirname, '..', 'frontend', 'dist', 'lab-app', 'browser');
+app.use(express.static(FRONTEND_DIST));
 
 // ── Mongoose models ───────────────────────────────────────────────────────────
 
@@ -163,6 +168,11 @@ app.delete('/api/records', authMiddleware, async (req, res) => {
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
+});
+
+// ── SPA fallback — всі не-API запити повертають index.html ───────────────────
+app.get(/^(?!\/api).*/, (_req, res) => {
+  res.sendFile(path.join(FRONTEND_DIST, 'index.html'));
 });
 
 // ── Connect & start ───────────────────────────────────────────────────────────

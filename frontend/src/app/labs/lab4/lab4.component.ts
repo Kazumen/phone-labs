@@ -1,8 +1,6 @@
-import { Component, OnDestroy, AfterViewInit, ViewChild, ElementRef, signal, inject } from '@angular/core';
+import { Component, OnDestroy, AfterViewInit, ViewChild, ElementRef, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { HttpClient } from '@angular/common/http';
 import { Chart, LineController, LineElement, PointElement, LinearScale, CategoryScale, Filler, Tooltip } from 'chart.js';
-import { API_URL } from '../../../api.config';
 
 Chart.register(LineController, LineElement, PointElement, LinearScale, CategoryScale, Filler, Tooltip);
 
@@ -15,6 +13,8 @@ const ZONES = [
   { name: 'Анаеробна',     min: 140, max: 170, color: '#f97316' },
   { name: 'Максимальна',   min: 170, max: Infinity, color: '#ef4444' },
 ];
+
+const STORAGE_KEY = 'lab4_pulse_records';
 
 function getZone(bpm: number) {
   return ZONES.find(z => bpm >= z.min && bpm < z.max)!;
@@ -29,18 +29,13 @@ function getZone(bpm: number) {
 export class Lab4Component implements AfterViewInit, OnDestroy {
   @ViewChild('chartCanvas') chartCanvas!: ElementRef<HTMLCanvasElement>;
 
-  private http = inject(HttpClient);
-
   recording = signal(false);
   bpm = signal(0);
   currentZone = signal(ZONES[0]);
   records = signal<PulseRecord[]>([]);
   range = signal<'hour' | 'day' | 'week'>('hour');
   zones = ZONES;
-  dbStatus = signal<'idle' | 'loading' | 'ok' | 'error'>('idle');
 
-  /** Записи, що накопичились під час поточного сеансу (ще не збережені в БД) */
-  private sessionBuffer: PulseRecord[] = [];
   private chart?: Chart;
   private timer?: ReturnType<typeof setInterval>;
   private phase = 0;
@@ -57,7 +52,7 @@ export class Lab4Component implements AfterViewInit, OnDestroy {
   get count() { return this.filtered.length; }
 
   ngAfterViewInit() {
-    this.loadPulse();
+    this.loadFromStorage();
     this.buildChart();
   }
 
@@ -65,12 +60,7 @@ export class Lab4Component implements AfterViewInit, OnDestroy {
     if (this.recording()) {
       clearInterval(this.timer);
       this.recording.set(false);
-      if (this.sessionBuffer.length) {
-        this.savePulse(this.sessionBuffer);
-        this.sessionBuffer = [];
-      }
     } else {
-      this.sessionBuffer = [];
       this.recording.set(true);
       this.timer = setInterval(() => this.tick(), 1000);
     }
@@ -83,9 +73,8 @@ export class Lab4Component implements AfterViewInit, OnDestroy {
 
   clearHistory() {
     this.records.set([]);
-    this.sessionBuffer = [];
+    localStorage.removeItem(STORAGE_KEY);
     this.updateChart();
-    this.deletePulse();
   }
 
   private tick() {
@@ -98,37 +87,20 @@ export class Lab4Component implements AfterViewInit, OnDestroy {
     this.currentZone.set(zone);
     const rec: PulseRecord = { ts: Date.now(), bpm, zone: zone.name };
     this.records.update(rs => [...rs, rec]);
-    this.sessionBuffer.push(rec);
+    this.saveToStorage();
     this.updateChart();
   }
 
-  // ── Backend API calls ──────────────────────────────────────────────────────
-
-  private loadPulse() {
-    this.dbStatus.set('loading');
-    const weekAgo = Date.now() - 604800000;
-    this.http.get<PulseRecord[]>(`${API_URL}/pulse?since=${weekAgo}`)
-      .subscribe({
-        next: docs => {
-          this.records.set(docs ?? []);
-          this.dbStatus.set('ok');
-          this.updateChart();
-        },
-        error: () => this.dbStatus.set('error'),
-      });
+  private saveToStorage() {
+    const last500 = this.records().slice(-500);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(last500));
   }
 
-  private savePulse(docs: PulseRecord[]) {
-    this.dbStatus.set('loading');
-    this.http.post(`${API_URL}/pulse/bulk`, docs)
-      .subscribe({
-        next: () => this.dbStatus.set('ok'),
-        error: () => this.dbStatus.set('error'),
-      });
-  }
-
-  private deletePulse() {
-    this.http.delete(`${API_URL}/pulse`).subscribe();
+  private loadFromStorage() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) this.records.set(JSON.parse(raw));
+    } catch { /* ignore */ }
   }
 
   // ── Chart ─────────────────────────────────────────────────────────────────
