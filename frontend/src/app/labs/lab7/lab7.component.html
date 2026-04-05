@@ -1,0 +1,116 @@
+<div class="lab-page">
+  <div class="lab-header card">
+    <div class="lab-num">Лабораторна 7 · Варіант 13</div>
+    <h2>🗺️ GPS Трекер маршрутів</h2>
+    <p>Запис GPS-маршруту через Geolocation API. Формула Гаверсинуса для відстані. Збереження треків у MongoDB через REST API.</p>
+    <div class="tag-row" style="margin-top:10px">
+      <span class="badge blue">Geolocation API</span>
+      <span class="badge purple">Haversine</span>
+      <span class="badge green">REST API</span>
+    </div>
+  </div>
+
+  <!-- Error -->
+  @if (error()) {
+    <div class="card error-card">⚠ {{ error() }}</div>
+  }
+
+  <!-- Control card -->
+  <div class="card">
+    <div class="section-header">
+      <h3>Запис маршруту</h3>
+      @if (syncStatus() === 'saving') {
+        <span class="badge yellow">↑ Збереження</span>
+      } @else if (syncStatus() === 'ok') {
+        <span class="badge green">✓ Збережено</span>
+      } @else if (syncStatus() === 'error') {
+        <span class="badge red">✗ Помилка</span>
+      }
+    </div>
+    <label style="margin-bottom:10px">
+      Назва маршруту
+      <input [(ngModel)]="trackName" placeholder="Маршрут" [disabled]="tracking()" />
+    </label>
+    <div class="btn-row">
+      <button class="btn" [class]="tracking() ? 'danger' : 'primary'" (click)="startStop()">
+        {{ tracking() ? '■ Зупинити' : '▶ Почати запис' }}
+      </button>
+    </div>
+    <p class="hint" style="margin-top:8px">📍 Потрібен дозвіл на геолокацію. При зупинці маршрут зберігається автоматично.</p>
+  </div>
+
+  <!-- Live metrics -->
+  <div class="data-grid">
+    <div class="data-cell">
+      <div class="label">Відстань</div>
+      <div class="value dist-val">
+        @if (distanceM() >= 1000) {
+          {{ (distanceM() / 1000) | number:'1.2-2' }} <span class="unit-sm">км</span>
+        } @else {
+          {{ distanceM() | number:'1.0-0' }} <span class="unit-sm">м</span>
+        }
+      </div>
+    </div>
+    <div class="data-cell">
+      <div class="label">Швидкість</div>
+      <div class="value">{{ speedKmh() }} <span class="unit-sm">км/год</span></div>
+    </div>
+    <div class="data-cell">
+      <div class="label">Час</div>
+      <div class="value">{{ formatDuration(elapsed()) }}</div>
+    </div>
+    <div class="data-cell">
+      <div class="label">Сер. швидкість</div>
+      <div class="value">{{ avgSpeedKmh }} <span class="unit-sm">км/год</span></div>
+    </div>
+    <div class="data-cell">
+      <div class="label">Точки</div>
+      <div class="value">{{ pointCount() }}</div>
+    </div>
+    <div class="data-cell">
+      <div class="label">Точність GPS</div>
+      <div class="value">{{ accuracy() }} <span class="unit-sm">м</span></div>
+    </div>
+  </div>
+
+  <!-- Live sonar pulse indicator -->
+  @if (tracking()) {
+    <div class="card live-card">
+      <div class="live-dot"></div>
+      <span>Запис активний — {{ pointCount() }} точок зібрано</span>
+    </div>
+  }
+
+  <!-- Saved tracks -->
+  <div class="card">
+    <div class="section-header">
+      <h3>Збережені маршрути</h3>
+      @if (loadStatus() === 'loading') {
+        <span class="badge yellow">Завантаження...</span>
+      }
+    </div>
+
+    @if (savedTracks().length === 0 && loadStatus() !== 'loading') {
+      <p style="font-size:.8rem">Немає збережених маршрутів</p>
+    }
+
+    @for (track of savedTracks(); track track._id) {
+      <div class="track-row">
+        <div class="track-info">
+          <div class="track-name">{{ track.name }}</div>
+          <div class="track-meta">
+            {{ formatDate(track.startTs) }} ·
+            @if (track.distanceM >= 1000) {
+              {{ (track.distanceM / 1000) | number:'1.2-2' }} км
+            } @else {
+              {{ track.distanceM | number:'1.0-0' }} м
+            }
+            · {{ formatDuration(track.durationSec) }}
+            · {{ track.points.length }} точок
+          </div>
+        </div>
+        <button class="btn-icon" (click)="deleteTrack(track._id!)">🗑</button>
+      </div>
+    }
+  </div>
+</div>

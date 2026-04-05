@@ -31,6 +31,17 @@ const hrSchema = new mongoose.Schema({
 });
 const HRRecord = mongoose.model('HRRecord', hrSchema, 'hr_records');
 
+const waypointSchema = new mongoose.Schema({ lat: Number, lng: Number, ts: Number, speed: Number, accuracy: Number });
+const trackSchema = new mongoose.Schema({
+  name:        { type: String, default: 'Маршрут' },
+  points:      [waypointSchema],
+  distanceM:   Number,
+  durationSec: Number,
+  startTs:     Number,
+  endTs:       Number,
+});
+const GeoTrack = mongoose.model('GeoTrack', trackSchema, 'geo_tracks');
+
 // ── Auth middleware ───────────────────────────────────────────────────────────
 
 function authMiddleware(req, res, next) {
@@ -164,6 +175,38 @@ app.post('/api/records/bulk', authMiddleware, async (req, res) => {
 app.delete('/api/records', authMiddleware, async (req, res) => {
   try {
     await HRRecord.deleteMany({ userEmail: req.user.email });
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── Lab 7 — GPS Tracks (no auth) ─────────────────────────────────────────────
+
+app.get('/api/tracks', async (_req, res) => {
+  try {
+    const tracks = await GeoTrack.find({}, { points: 0 }).sort({ startTs: -1 }).limit(50).lean();
+    res.json(tracks);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post('/api/tracks', async (req, res) => {
+  try {
+    const { name, points, distanceM, durationSec, startTs, endTs } = req.body;
+    if (!Array.isArray(points) || points.length < 2)
+      return res.status(400).json({ error: 'Need at least 2 waypoints' });
+    const track = await GeoTrack.create({ name, points, distanceM, durationSec, startTs, endTs });
+    res.json(track);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.delete('/api/tracks/:id', async (req, res) => {
+  try {
+    await GeoTrack.findByIdAndDelete(req.params.id);
     res.json({ ok: true });
   } catch (e) {
     res.status(500).json({ error: e.message });

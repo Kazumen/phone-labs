@@ -26,4 +26,8 @@ export const routes: Routes = [
     path: 'lab6',
     loadComponent: () => import('./labs/lab6/lab6.component').then(m => m.Lab6Component),
   },
+  {
+    path: 'lab7',
+    loadComponent: () => import('./labs/lab7/lab7.component').then(m => m.Lab7Component),
+  },
 ];
