@@ -31,16 +31,16 @@ const hrSchema = new mongoose.Schema({
 });
 const HRRecord = mongoose.model('HRRecord', hrSchema, 'hr_records');
 
-const waypointSchema = new mongoose.Schema({ lat: Number, lng: Number, ts: Number, speed: Number, accuracy: Number });
-const trackSchema = new mongoose.Schema({
-  name:        { type: String, default: 'Маршрут' },
-  points:      [waypointSchema],
-  distanceM:   Number,
-  durationSec: Number,
-  startTs:     Number,
-  endTs:       Number,
+const lightReadingSchema = new mongoose.Schema({ ts: Number, lux: Number, motion: Number, visibility: Number });
+const LightReading = mongoose.model('LightReading', lightReadingSchema, 'light_readings');
+
+const lightDeviceSchema = new mongoose.Schema({
+  deviceId:      { type: String, unique: true },
+  ledBrightness: Number,
+  fogLamps:      Boolean,
+  updatedAt:     Number,
 });
-const GeoTrack = mongoose.model('GeoTrack', trackSchema, 'geo_tracks');
+const LightDevice = mongoose.model('LightDevice', lightDeviceSchema, 'light_devices');
 
 // ── Auth middleware ───────────────────────────────────────────────────────────
 
@@ -181,33 +181,57 @@ app.delete('/api/records', authMiddleware, async (req, res) => {
   }
 });
 
-// ── Lab 7 — GPS Tracks (no auth) ─────────────────────────────────────────────
+// ── Lab 7 — Street Lighting (no auth) ───────────────────────────────────────
 
-app.get('/api/tracks', async (_req, res) => {
+app.get('/api/lights/records', async (req, res) => {
   try {
-    const tracks = await GeoTrack.find({}, { points: 0 }).sort({ startTs: -1 }).limit(50).lean();
-    res.json(tracks);
+    const since = Number(req.query.since) || Date.now() - 3_600_000;
+    const docs = await LightReading.find({ ts: { $gte: since } }).sort({ ts: 1 }).limit(1000).lean();
+    res.json(docs);
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
 });
 
-app.post('/api/tracks', async (req, res) => {
+app.post('/api/lights/records/bulk', async (req, res) => {
   try {
-    const { name, points, distanceM, durationSec, startTs, endTs } = req.body;
-    if (!Array.isArray(points) || points.length < 2)
-      return res.status(400).json({ error: 'Need at least 2 waypoints' });
-    const track = await GeoTrack.create({ name, points, distanceM, durationSec, startTs, endTs });
-    res.json(track);
+    const docs = req.body;
+    if (!Array.isArray(docs) || !docs.length) return res.status(400).json({ error: 'Expected array' });
+    await LightReading.insertMany(docs);
+    res.json({ inserted: docs.length });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
 });
 
-app.delete('/api/tracks/:id', async (req, res) => {
+app.delete('/api/lights/records', async (_req, res) => {
   try {
-    await GeoTrack.findByIdAndDelete(req.params.id);
+    await LightReading.deleteMany({});
     res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.get('/api/lights/devices', async (_req, res) => {
+  try {
+    let dev = await LightDevice.findOne({ deviceId: 'street-lights' }).lean();
+    if (!dev) dev = { deviceId: 'street-lights', ledBrightness: 0, fogLamps: false, updatedAt: Date.now() };
+    res.json(dev);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.put('/api/lights/devices', async (req, res) => {
+  try {
+    const { ledBrightness, fogLamps } = req.body;
+    const dev = await LightDevice.findOneAndUpdate(
+      { deviceId: 'street-lights' },
+      { ledBrightness, fogLamps, updatedAt: Date.now() },
+      { upsert: true, new: true }
+    ).lean();
+    res.json(dev);
   } catch (e) {
     res.status(500).json({ error: e.message });
   }

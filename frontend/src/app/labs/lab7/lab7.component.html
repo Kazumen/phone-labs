@@ -1,116 +1,182 @@
 <div class="lab-page">
+
+  <!-- Header -->
   <div class="lab-header card">
     <div class="lab-num">Лабораторна 7 · Варіант 13</div>
-    <h2>🗺️ GPS Трекер маршрутів</h2>
-    <p>Запис GPS-маршруту через Geolocation API. Формула Гаверсинуса для відстані. Збереження треків у MongoDB через REST API.</p>
-    <div class="tag-row" style="margin-top:10px">
-      <span class="badge blue">Geolocation API</span>
-      <span class="badge purple">Haversine</span>
-      <span class="badge green">REST API</span>
+    <h2>💡 Система управління вуличним освітленням</h2>
+    <p>Смарт-система вуличного освітлення: датчики освітленості, руху та видимості. Автоматичне керування LED-ліхтарями й туманними лампами. Синхронізація через MongoDB REST API.</p>
+    <div class="tag-row">
+      <span class="badge yellow">Chart.js</span>
+      <span class="badge blue">REST API</span>
+      <span class="badge green">MongoDB</span>
+      <span class="badge gray">Офлайн-кеш</span>
     </div>
   </div>
 
-  <!-- Error -->
-  @if (error()) {
-    <div class="card error-card">⚠ {{ error() }}</div>
-  }
-
-  <!-- Control card -->
-  <div class="card">
-    <div class="section-header">
-      <h3>Запис маршруту</h3>
+  <!-- Sync status bar -->
+  <div class="card status-bar">
+    <div class="status-left">
+      @if (offlineMode()) {
+        <span class="badge red">⚡ Офлайн-режим</span>
+      } @else {
+        <span class="badge green">☁ Онлайн</span>
+      }
+      @if (pendingCount() > 0) {
+        <span class="badge yellow">{{ pendingCount() }} очікують sync</span>
+      }
+    </div>
+    <div class="status-right">
       @if (syncStatus() === 'saving') {
-        <span class="badge yellow">↑ Збереження</span>
+        <span class="badge yellow">↑ Збереження…</span>
       } @else if (syncStatus() === 'ok') {
-        <span class="badge green">✓ Збережено</span>
+        <span class="badge green">✓ Синхронізовано</span>
       } @else if (syncStatus() === 'error') {
         <span class="badge red">✗ Помилка</span>
+      } @else if (syncStatus() === 'loading') {
+        <span class="badge blue">↓ Завантаження…</span>
       }
-    </div>
-    <label style="margin-bottom:10px">
-      Назва маршруту
-      <input [(ngModel)]="trackName" placeholder="Маршрут" [disabled]="tracking()" />
-    </label>
-    <div class="btn-row">
-      <button class="btn" [class]="tracking() ? 'danger' : 'primary'" (click)="startStop()">
-        {{ tracking() ? '■ Зупинити' : '▶ Почати запис' }}
-      </button>
-    </div>
-    <p class="hint" style="margin-top:8px">📍 Потрібен дозвіл на геолокацію. При зупинці маршрут зберігається автоматично.</p>
-  </div>
-
-  <!-- Live metrics -->
-  <div class="data-grid">
-    <div class="data-cell">
-      <div class="label">Відстань</div>
-      <div class="value dist-val">
-        @if (distanceM() >= 1000) {
-          {{ (distanceM() / 1000) | number:'1.2-2' }} <span class="unit-sm">км</span>
-        } @else {
-          {{ distanceM() | number:'1.0-0' }} <span class="unit-sm">м</span>
-        }
-      </div>
-    </div>
-    <div class="data-cell">
-      <div class="label">Швидкість</div>
-      <div class="value">{{ speedKmh() }} <span class="unit-sm">км/год</span></div>
-    </div>
-    <div class="data-cell">
-      <div class="label">Час</div>
-      <div class="value">{{ formatDuration(elapsed()) }}</div>
-    </div>
-    <div class="data-cell">
-      <div class="label">Сер. швидкість</div>
-      <div class="value">{{ avgSpeedKmh }} <span class="unit-sm">км/год</span></div>
-    </div>
-    <div class="data-cell">
-      <div class="label">Точки</div>
-      <div class="value">{{ pointCount() }}</div>
-    </div>
-    <div class="data-cell">
-      <div class="label">Точність GPS</div>
-      <div class="value">{{ accuracy() }} <span class="unit-sm">м</span></div>
+      <button class="btn secondary btn-sm" (click)="syncNow()">↺ Sync</button>
     </div>
   </div>
 
-  <!-- Live sonar pulse indicator -->
-  @if (tracking()) {
-    <div class="card live-card">
-      <div class="live-dot"></div>
-      <span>Запис активний — {{ pointCount() }} точок зібрано</span>
-    </div>
-  }
-
-  <!-- Saved tracks -->
+  <!-- Generator control -->
   <div class="card">
     <div class="section-header">
-      <h3>Збережені маршрути</h3>
-      @if (loadStatus() === 'loading') {
-        <span class="badge yellow">Завантаження...</span>
-      }
+      <h3>Генератор сенсорів</h3>
+      <button class="btn" [class]="running() ? 'danger' : 'primary'" (click)="startStop()">
+        {{ running() ? '■ Зупинити' : '▶ Запустити' }}
+      </button>
+    </div>
+    <p class="hint">
+      Освітленість залежить від часу доби (сонячна крива), рух зростає в години пік (7–9, 17–19),
+      видимість випадково знижується при тумані або дощі.
+    </p>
+  </div>
+
+  <!-- Live sensors -->
+  <div class="data-grid">
+    <div class="data-cell" [class.active-cell]="lux() < 10000">
+      <div class="label">Освітленість</div>
+      <div class="value lux-val">{{ lux() | number:'1.0-0' }}</div>
+      <div class="value-unit">lux</div>
+    </div>
+    <div class="data-cell" [class.active-cell]="motion() === 1">
+      <div class="label">Рух</div>
+      <div class="value">{{ motion() ? '🚗 Є' : '— Нема' }}</div>
+    </div>
+    <div class="data-cell" [class.active-cell]="visibility() < 30">
+      <div class="label">Видимість</div>
+      <div class="value">{{ visibility() }}</div>
+      <div class="value-unit">%</div>
+    </div>
+  </div>
+
+  <!-- Devices -->
+  <div class="card">
+    <h3>Пристрої</h3>
+
+    <div class="device-row">
+      <div class="device-info">
+        <span class="dev-icon">💡</span>
+        <span class="dev-name">LED-ліхтарі</span>
+        <span class="dev-val">{{ ledBrightness() }}%</span>
+      </div>
+      <div class="slider-wrap">
+        <input type="range" min="0" max="100" step="5"
+               [value]="ledBrightness()"
+               (input)="setLed(+$any($event.target).value)" />
+        <div class="brightness-bar">
+          <div class="brightness-fill"
+               [style.width.%]="ledBrightness()"
+               [style.background]="ledBrightness() > 60 ? '#f59e0b' : ledBrightness() > 20 ? '#fcd34d' : '#64748b'"></div>
+        </div>
+      </div>
     </div>
 
-    @if (savedTracks().length === 0 && loadStatus() !== 'loading') {
-      <p style="font-size:.8rem">Немає збережених маршрутів</p>
-    }
+    <div class="device-row mt-12">
+      <div class="device-info">
+        <span class="dev-icon">🌫</span>
+        <span class="dev-name">Туманні лампи</span>
+        <span class="badge" [class]="fogLamps() ? 'green' : 'gray'">
+          {{ fogLamps() ? 'Увімкнено' : 'Вимкнено' }}
+        </span>
+      </div>
+      <button class="btn btn-sm" [class]="fogLamps() ? 'danger' : 'primary'" (click)="toggleFog()">
+        {{ fogLamps() ? 'Вимкнути' : 'Увімкнути' }}
+      </button>
+    </div>
+  </div>
 
-    @for (track of savedTracks(); track track._id) {
-      <div class="track-row">
-        <div class="track-info">
-          <div class="track-name">{{ track.name }}</div>
-          <div class="track-meta">
-            {{ formatDate(track.startTs) }} ·
-            @if (track.distanceM >= 1000) {
-              {{ (track.distanceM / 1000) | number:'1.2-2' }} км
-            } @else {
-              {{ track.distanceM | number:'1.0-0' }} м
-            }
-            · {{ formatDuration(track.durationSec) }}
-            · {{ track.points.length }} точок
-          </div>
+  <!-- Automation rules -->
+  <div class="card">
+    <h3>Правила автоматизації</h3>
+    @for (rule of rules(); track rule.id) {
+      <div class="rule-row">
+        <label class="rule-toggle">
+          <input type="checkbox" [checked]="rule.enabled"
+                 (change)="updateRule(rule.id, 'enabled', $any($event.target).checked)" />
+          <span class="rule-label">{{ rule.label }}</span>
+        </label>
+        <div class="rule-threshold">
+          <input type="number" class="thr-input" [value]="rule.threshold" min="0"
+                 (change)="updateRule(rule.id, 'threshold', +$any($event.target).value)" />
+          <span class="thr-unit">{{ rule.unit }}</span>
         </div>
-        <button class="btn-icon" (click)="deleteTrack(track._id!)">🗑</button>
       </div>
     }
   </div>
+
+  <!-- Chart -->
+  <div class="card">
+    <div class="section-header">
+      <h3>Графік</h3>
+      <div class="range-tabs">
+        <button [class.active]="range() === 'hour'" (click)="setRange('hour')">1год</button>
+        <button [class.active]="range() === 'day'"  (click)="setRange('day')">1д</button>
+        <button [class.active]="range() === 'week'" (click)="setRange('week')">7д</button>
+      </div>
+    </div>
+    <div class="chart-wrap">
+      <canvas #chartCanvas></canvas>
+    </div>
+  </div>
+
+  <!-- Statistics -->
+  <div class="card">
+    <div class="section-header">
+      <h3>Статистика</h3>
+      <button class="btn secondary btn-sm" (click)="clearHistory()">🗑 Очистити</button>
+    </div>
+    <div class="data-grid">
+      <div class="data-cell">
+        <div class="label">Записів</div>
+        <div class="value">{{ filtered.length }}</div>
+      </div>
+      <div class="data-cell">
+        <div class="label">Сер. освітл.</div>
+        <div class="value">{{ avgLux | number:'1.0-0' }} <span class="unit-sm">lux</span></div>
+      </div>
+      <div class="data-cell">
+        <div class="label">Медіана lux</div>
+        <div class="value">{{ medianLux | number:'1.0-0' }}</div>
+      </div>
+      <div class="data-cell">
+        <div class="label">Сер. видимість</div>
+        <div class="value">{{ avgVis }}%</div>
+      </div>
+      <div class="data-cell">
+        <div class="label">Тренд</div>
+        <div class="value">
+          @if (trend === 'rising') { 📈 Зростає }
+          @else if (trend === 'falling') { 📉 Спадає }
+          @else { ➡ Стабільно }
+        </div>
+      </div>
+      <div class="data-cell">
+        <div class="label">LED зараз</div>
+        <div class="value">{{ ledBrightness() }}%</div>
+      </div>
+    </div>
+  </div>
+
 </div>
